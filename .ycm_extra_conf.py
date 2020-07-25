@@ -50,7 +50,7 @@ base_flags = [
         # a "-std=<something>".
         # For a C project, you would set this to something like 'c99' instead of
         # 'c++11'.
-        '-std=c++17',
+        '-std=c++11',
         # ...and the same thing goes for the magic -x option which specifies the
         # language that the files to be compiled are written in. This is mostly
         # relevant for c++ headers.
@@ -76,6 +76,7 @@ sys_include_dir = [
 # -I <dir>
 project_include_dir = [
     ".",
+    "./spdlog",
     "./build",
 ]
 
