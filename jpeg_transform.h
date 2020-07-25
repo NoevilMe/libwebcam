@@ -2,13 +2,15 @@
 #define __JPEG_TRANSFORM_H_
 
 #include <string>
+
 #include <turbojpeg.h>
 
+namespace noevil {
 namespace webcam {
 
-class JpegTransform {
+class JpegTransform final {
 public:
-    enum JpegTransformOp {
+    enum class JpegTransformOp {
         kTransNone,
         kTransRot90,
         kTransRot180,
@@ -19,13 +21,16 @@ public:
     JpegTransform(JpegTransformOp op);
     ~JpegTransform();
 
-    bool Transform(unsigned char* jpeg_buf, unsigned long jpeg_size, std::string& out);
-    bool Transform(const std::string& jpeg, std::string& out);
+    bool Transform(unsigned char *jpeg_buf, unsigned long jpeg_size,
+                   std::string &out);
+    bool Transform(const std::string &jpeg, std::string &out);
 
 private:
     tjhandle handle_;
     tjtransform xtrans_;
 };
 
-}
+} // namespace webcam
+} // namespace noevil
+
 #endif /* __JPEG_TRANSFORM_H_ */

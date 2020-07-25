@@ -3,11 +3,11 @@
 #include <cstring>
 #include <stdexcept>
 
+namespace noevil {
+
 namespace webcam {
 
-JpegTransform::JpegTransform(JpegTransformOp op)
-    : handle_(tjInitTransform())
-{
+JpegTransform::JpegTransform(JpegTransformOp op) : handle_(tjInitTransform()) {
     if (!handle_) {
         throw std::runtime_error(tjGetErrorStr());
     }
@@ -15,16 +15,16 @@ JpegTransform::JpegTransform(JpegTransformOp op)
     memset(&xtrans_, 0, sizeof(xtrans_));
 
     switch (op) {
-    case kTransNone:
+    case JpegTransformOp::kTransNone:
         xtrans_.op = TJXOP_NONE;
         break;
-    case kTransRot90:
+    case JpegTransformOp::kTransRot90:
         xtrans_.op = TJXOP_ROT90;
         break;
-    case kTransRot180:
+    case JpegTransformOp::kTransRot180:
         xtrans_.op = TJXOP_ROT180;
         break;
-    case kTransRot270:
+    case JpegTransformOp::kTransRot270:
         xtrans_.op = TJXOP_ROT270;
         break;
     default:
@@ -34,30 +34,28 @@ JpegTransform::JpegTransform(JpegTransformOp op)
     xtrans_.options |= TJXOPT_TRIM;
 }
 
-JpegTransform::~JpegTransform()
-{
+JpegTransform::~JpegTransform() {
     if (handle_) {
         tjDestroy(handle_);
     }
 }
 
-bool JpegTransform::Transform(unsigned char* jpeg_buf,
-    unsigned long jpeg_size, std::string& out)
-{
+bool JpegTransform::Transform(unsigned char *jpeg_buf, unsigned long jpeg_size,
+                              std::string &out) {
     if (xtrans_.op == TJXOP_NONE) {
         return false;
     }
 
     unsigned long dst_size = 0;
-    unsigned char* dst_buf = nullptr;
+    unsigned char *dst_buf = nullptr;
 
     int rel = tjTransform(handle_, jpeg_buf, jpeg_size, 1, &dst_buf, &dst_size,
-        &xtrans_, TJFLAG_ACCURATEDCT);
+                          &xtrans_, TJFLAG_ACCURATEDCT);
     if (rel) {
         throw std::runtime_error(tjGetErrorStr());
     }
 
-    out.assign((char*)dst_buf, dst_size);
+    out.assign((char *)dst_buf, dst_size);
 
     if (dst_size) {
         tjFree(dst_buf);
@@ -66,9 +64,9 @@ bool JpegTransform::Transform(unsigned char* jpeg_buf,
     return true;
 }
 
-bool JpegTransform::Transform(const std::string& jpeg, std::string& out)
-{
-    return Transform((unsigned char*)jpeg.data(), jpeg.size(), out);
+bool JpegTransform::Transform(const std::string &jpeg, std::string &out) {
+    return Transform((unsigned char *)jpeg.data(), jpeg.size(), out);
 }
 
-}
+} // namespace webcam
+} // namespace noevil

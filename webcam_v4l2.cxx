@@ -8,22 +8,24 @@
  */
 #include "webcam_v4l2.h"
 
-#include <iostream>
-#include <stdexcept>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <sys/select.h>
-#include <turbojpeg.h>
-#include <utility>
-#include <vector>
-
 #include "fmt/bundled/core.h"
 #include "fmt/bundled/format.h"
 #include "string_util.hpp"
 
+#include <iostream>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/select.h>
+#include <turbojpeg.h>
+
 // The SCALE macro converts a value (sv) from one range (sf -> sr)
 #define SCALE(df, dr, sf, sr, sv) (((sv - sf) * (dr - df) / (sr - sf)) + df)
 
+namespace noevil {
 namespace webcam {
 
 constexpr auto QBUF_SIZE = 5;
@@ -31,49 +33,49 @@ constexpr auto VIDEO_DEV_PREFIX = "/dev/video";
 static constexpr auto LOGGER_NAME = "webcam-v4l2";
 
 void V4l2BufStatDeleter::operator()(V4l2BufStat *stat) {
+    if (!stat->buffer)
+        return;
+
     for (int i = 0; i < stat->count; ++i) {
         munmap(stat->buffer[i].start, stat->buffer[i].length);
     }
 
-    if (stat->buffer) {
-        delete[] stat->buffer;
-        stat->buffer = nullptr;
-    }
+    delete[] stat->buffer;
+    stat->buffer = nullptr;
 }
 
 WebcamV4l2::WebcamV4l2()
-    : cam_fd_(-1),
+    : working_(false),
+      cam_fd_(-1),
       capabilities_(0),
       format_(0),
-      working_(false),
-      async_mode_(false),
       logger_(util::GetLogger(LOGGER_NAME)) {}
 
 WebcamV4l2::WebcamV4l2(int id)
-    : cam_fd_(-1),
+    : working_(false),
+      cam_fd_(-1),
       capabilities_(0),
       format_(0),
-      working_(false),
-      async_mode_(false),
       dev_name_(VIDEO_DEV_PREFIX + std::to_string(id)),
       logger_(util::GetLogger(LOGGER_NAME)) {}
 
 WebcamV4l2::WebcamV4l2(const char *name)
-    : cam_fd_(-1),
+    : working_(false),
+      cam_fd_(-1),
       capabilities_(0),
       format_(0),
-      working_(false),
-      async_mode_(false),
-      dev_name_(VIDEO_DEV_PREFIX + std::string(name)),
+      dev_name_(name),
       logger_(util::GetLogger(LOGGER_NAME)) {}
 
 WebcamV4l2::~WebcamV4l2() { Release(); }
 
 std::string WebcamV4l2::GetError() const { return error_; }
 
-std::string WebcamV4l2::FormatErrno() { return strerror(errno); }
+std::string WebcamV4l2::FormatErrno() {
+    return fmt::format("{} - {}", errno, strerror(errno));
+}
 
-bool WebcamV4l2::Open() {
+bool WebcamV4l2::Open(bool force) {
     logger_->debug("check {} open", dev_name_);
     if (IsOpen()) {
         close(cam_fd_);
@@ -993,3 +995,4 @@ bool WebcamV4l2::SetTransform(JpegTransform::JpegTransformOp op) {
 }
 
 } // namespace webcam
+} // namespace noevil

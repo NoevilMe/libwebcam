@@ -3,7 +3,7 @@
  * File              : log.h
  * Author            : NoevilMe <surpass168@live.com>
  * Date              : 2020-04-23 19:04:23
- * Last Modified Date: 2020-04-23 19:04:25
+ * Last Modified Date: 2020-07-25 22:03:50
  * Last Modified By  : NoevilMe <surpass168@live.com>
  */
 /**
@@ -36,17 +36,21 @@
 
 #include "spdlog/spdlog.h"
 
+namespace noevil {
 namespace util {
+
 using Logger = std::shared_ptr<spdlog::logger>;
 
 // create logger sink
-void Init(const std::string &log_path, int size = 1024 * 1024 * 10, int count = 10);
+void Init(const std::string &log_path, int size = 1024 * 1024 * 10,
+          int count = 10);
 
 void SetLevel(spdlog::level::level_enum level);
 
 // create or get looger
 Logger GetLogger(const std::string &name);
 
-}
+} // namespace util
+} // namespace noevil
 
 #endif /* __LOG_H_ */

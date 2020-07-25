@@ -3,7 +3,7 @@
  * File              : log.cxx
  * Author            : NoevilMe <surpass168@live.com>
  * Date              : 2020-04-23 19:05:39
- * Last Modified Date: 2020-04-23 19:05:39
+ * Last Modified Date: 2020-07-25 22:08:37
  * Last Modified By  : NoevilMe <surpass168@live.com>
  */
 /**
@@ -29,31 +29,32 @@
  * SOFTWARE.
  */
 #include "log.h"
+#include "spdlog/sinks/rotating_file_sink.h"
+
 #include <iostream>
 #include <string>
-#include <spdlog/sinks/rotating_file_sink.h>
 
+namespace noevil {
 namespace util {
 
-std::shared_ptr<spdlog::sinks::rotating_file_sink_mt> log_sink_ = nullptr;
-spdlog::level::level_enum level_ = spdlog::level::info;
+static std::shared_ptr<spdlog::sinks::rotating_file_sink_mt> log_sink_ =
+    nullptr;
+static spdlog::level::level_enum level_ = spdlog::level::info;
 
-void Init(const std::string &log_path, int size, int count)
-{
+void Init(const std::string &log_path, int size, int count) {
     if (!log_sink_) {
-        log_sink_ = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_path, size, count);
+        log_sink_ = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+            log_path, size, count);
     }
 }
 
-void SetLevel(spdlog::level::level_enum level)
-{
+void SetLevel(spdlog::level::level_enum level) {
     level_ = level;
     // this only effects existing loggers
     spdlog::set_level(level);
 }
 
-Logger GetLogger(const std::string &name)
-{
+Logger GetLogger(const std::string &name) {
     if (!log_sink_)
         return nullptr;
 
@@ -68,4 +69,5 @@ Logger GetLogger(const std::string &name)
     return logger;
 }
 
-}
+} // namespace util
+} // namespace noevil
