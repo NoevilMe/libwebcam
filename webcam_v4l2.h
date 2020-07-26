@@ -30,11 +30,10 @@ enum WebcamFormat {
 
 struct V4l2BufUnit {
     int index = 0;
+    uint32_t length = 0;
     uint32_t offset = 0;
 
     void *start = nullptr;
-    uint32_t length = 0;
-
     uint32_t bytes = 0;
 };
 
@@ -86,10 +85,9 @@ public:
     bool Start();
     bool Stop();
 
-    // async mode
-    bool SetGrabCallback(const std::function<void(const char *, uint32_t)> &cb);
-    bool RunStart();
-    bool RunStop();
+    // retrieve
+    bool Retrieve(std::string &img);
+    bool Retrieve(std::string *img);
 
     // query util
     bool GetControl();
@@ -114,9 +112,6 @@ private:
     static std::string PixFormatName(uint32_t format);
     // TODO:
     bool SetExtControl();
-    // legacy
-    bool GetOldControl();
-    bool GetOldPrivateControl();
 
     bool ShowCtrlMenu(struct v4l2_queryctrl *queryctrl);
     bool ShowCtrlInt(struct v4l2_queryctrl *queryctrl);
@@ -124,8 +119,10 @@ private:
 
     void Release();
 
+    // select and grab
     bool GrabFrame(void *&img, uint32_t *length, uint32_t timeout = 100);
     bool GrabFrame(std::string &img, uint32_t timeout = 100);
+
 
 private:
     bool working_;

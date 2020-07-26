@@ -3,13 +3,13 @@
  * File              : webcam_v4l2.cxx
  * Author            : NoevilMe <surpass168@live.com>
  * Date              : 2020-05-21 23:02:05
- * Last Modified Date: 2020-05-21 23:02:05
+ * Last Modified Date: 2020-07-26 09:33:07
  * Last Modified By  : NoevilMe <surpass168@live.com>
  */
 #include "webcam_v4l2.h"
 
-#include "fmt/bundled/core.h"
-#include "fmt/bundled/format.h"
+#include "spdlog/fmt/bundled/core.h"
+#include "spdlog/fmt/bundled/format.h"
 #include "string_util.hpp"
 
 #include <iostream>
@@ -28,8 +28,8 @@
 namespace noevil {
 namespace webcam {
 
-constexpr auto QBUF_SIZE = 5;
-constexpr auto VIDEO_DEV_PREFIX = "/dev/video";
+static constexpr auto QBUF_SIZE = 5;
+static constexpr auto VIDEO_DEV_PREFIX = "/dev/video";
 static constexpr auto LOGGER_NAME = "webcam-v4l2";
 
 void V4l2BufStatDeleter::operator()(V4l2BufStat *stat) {
@@ -78,8 +78,14 @@ std::string WebcamV4l2::FormatErrno() {
 bool WebcamV4l2::Open(bool force) {
     logger_->debug("check {} open", dev_name_);
     if (IsOpen()) {
-        close(cam_fd_);
-        cam_fd_ = -1;
+        if (force) {
+            close(cam_fd_);
+            cam_fd_ = -1;
+
+        } else {
+            logger_->debug("{} is open", dev_name_);
+            return true;
+        }
     }
 
     logger_->debug("check {} stat", dev_name_);
@@ -91,7 +97,7 @@ bool WebcamV4l2::Open(bool force) {
     }
 
     logger_->debug("check {} type", dev_name_);
-    // check if its device
+    // check if it's device
     if (!S_ISCHR(st.st_mode)) {
         error_ = dev_name_ + " is not a device";
         logger_->error(error_);
@@ -105,7 +111,7 @@ bool WebcamV4l2::Open(bool force) {
         logger_->error("open {} failure: {}", dev_name_, error_);
         return false;
     }
-    logger_->debug("open {} done", dev_name_);
+    logger_->debug("open {} success", dev_name_);
     return true;
 }
 
@@ -113,7 +119,7 @@ bool WebcamV4l2::Open(const char *name) {
     if (!name) {
         return false;
     }
-    dev_name_ = VIDEO_DEV_PREFIX + std::string(name);
+    dev_name_ = name;
     return Open();
 }
 
@@ -156,7 +162,7 @@ bool WebcamV4l2::GrabFrame(void *&img, uint32_t *length, uint32_t timeout) {
     int r = select(cam_fd_ + 1, &fds, nullptr, nullptr, &tv);
 
     if (-1 == r) {
-        error_ = fmt::format("select failure, {}", strerror(errno));
+        error_ = fmt::format("select failure, {}", FormatErrno());
         logger_->error(error_);
         return false;
     }
@@ -203,7 +209,7 @@ bool WebcamV4l2::GrabFrame(std::string &img, uint32_t timeout) {
     int r = select(cam_fd_ + 1, &fds, nullptr, nullptr, &tv);
 
     if (-1 == r) {
-        error_ = fmt::format("select failure, {}", strerror(errno));
+        error_ = fmt::format("select failure, {}", FormatErrno());
         logger_->error(error_);
         return false;
     }
@@ -220,7 +226,8 @@ bool WebcamV4l2::GrabFrame(std::string &img, uint32_t timeout) {
     buf_ptr->memory = V4L2_MEMORY_MMAP;
 
     if (ioctl(cam_fd_, VIDIOC_DQBUF, buf_ptr) == -1) {
-        logger_->error("VIDIOC_DQBUF failure");
+        error_ = fmt::format("VIDIOC_DQBUF failure, {}", FormatErrno());
+        logger_->error(error_);
         return false;
     }
 
@@ -231,7 +238,8 @@ bool WebcamV4l2::GrabFrame(std::string &img, uint32_t timeout) {
                buf_stat_->buffer[index].bytes);
 
     if (ioctl(cam_fd_, VIDIOC_QBUF, buf_ptr) == -1) {
-        logger_->error("VIDIOC_QBUF failure");
+        error_ = fmt::format("VIDIOC_QBUF failure, {}", FormatErrno());
+        logger_->error(error_);
         return false;
     }
 
@@ -239,7 +247,7 @@ bool WebcamV4l2::GrabFrame(std::string &img, uint32_t timeout) {
 }
 
 bool WebcamV4l2::Close() {
-    if (!IsOpen()) {
+    if (IsOpen()) {
         close(cam_fd_);
         cam_fd_ = -1;
     }
@@ -291,7 +299,7 @@ bool WebcamV4l2::SetInput(const char *name) {
         return false;
     }
 
-    logger_->debug("set input done");
+    logger_->debug("set input success");
 
     return true;
 }
@@ -372,8 +380,7 @@ bool WebcamV4l2::SetPixFormat(WebcamFormat fmt, uint32_t width,
         if (ioctl(cam_fd_, VIDIOC_ENUM_FMT, &fmt_desc) == 0) {
             pix_format = fmt_desc.pixelformat;
         } else {
-            error_ =
-                fmt::format("get index 0 format failure, {}", strerror(errno));
+            error_ = fmt::format("get index 0 format failure, {}", FormatErrno());
             logger_->error(error_);
             return false;
         }
@@ -391,7 +398,7 @@ bool WebcamV4l2::SetPixFormat(WebcamFormat fmt, uint32_t width,
     if (ioctl(cam_fd_, VIDIOC_TRY_FMT, &v4l2_fmt) == -1) {
         error_ = fmt::format("try format {}, {}x{} error, {}",
                              PixFormatName(pix_format), width, height,
-                             strerror(errno));
+                             FormatErrno());
         logger_->error(error_);
         return false;
     }
@@ -404,7 +411,8 @@ bool WebcamV4l2::SetPixFormat(WebcamFormat fmt, uint32_t width,
         return false;
     }
 
-    logger_->debug("enumerate format {} size", PixFormatName(pix_format));
+    logger_->debug("enumerate format {} support frame size",
+                   PixFormatName(pix_format));
 
     struct v4l2_frmsizeenum frmsize;
     frmsize.pixel_format = pix_format;
@@ -437,7 +445,7 @@ bool WebcamV4l2::SetPixFormat(WebcamFormat fmt, uint32_t width,
     }
 
     if (ioctl(cam_fd_, VIDIOC_S_FMT, &v4l2_fmt) == -1) {
-        error_ = fmt::format("set pixel format failure, {}", strerror(errno));
+        error_ = fmt::format("set pixel format failure, {}", FormatErrno());
         logger_->error(error_);
         return false;
     }
@@ -450,7 +458,7 @@ bool WebcamV4l2::SetPixFormat(WebcamFormat fmt, uint32_t width,
 }
 
 void WebcamV4l2::Release() {
-    FreeMMap();
+    Stop();
 
     Close();
 
@@ -481,7 +489,7 @@ bool WebcamV4l2::SetMMap() {
     req.memory = V4L2_MEMORY_MMAP;
 
     if (ioctl(cam_fd_, VIDIOC_REQBUFS, &req) == -1) {
-        error_ = fmt::format("VIDIOC_REQBUFS failure, {}", strerror(errno));
+        error_ = fmt::format("VIDIOC_REQBUFS failure, {}", FormatErrno());
         logger_->error(error_);
         return false;
     }
@@ -522,8 +530,7 @@ bool WebcamV4l2::SetMMap() {
                           MAP_SHARED, cam_fd_, buf.m.offset);
 
         if (unit.start == MAP_FAILED) {
-            error_ =
-                fmt::format("map buffer {} failure, {}", i, strerror(errno));
+            error_ = fmt::format("map buffer {} failure, {}", i, FormatErrno());
             logger_->error(error_);
             return false;
         }
@@ -540,7 +547,7 @@ bool WebcamV4l2::SetMMap() {
         buf.memory = V4L2_MEMORY_MMAP;
 
         if (ioctl(cam_fd_, VIDIOC_QBUF, &buf) == -1) {
-            error_ = fmt::format("unable to queue buffer, {}", strerror(errno));
+            error_ = fmt::format("unable to queue buffer, {}", FormatErrno());
             logger_->error(error_);
             return false;
         }
@@ -553,9 +560,8 @@ bool WebcamV4l2::SetMMap() {
 bool WebcamV4l2::FreeMMap() {
     if (buf_stat_) {
         buf_stat_.reset();
-        return true;
     }
-    return false;
+    return true;
 }
 
 bool WebcamV4l2::StreamOn() {
@@ -567,7 +573,7 @@ bool WebcamV4l2::StreamOn() {
 
     enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (ioctl(cam_fd_, VIDIOC_STREAMON, &type) == -1) {
-        error_ = fmt::format("streamon failure, {}", strerror(errno));
+        error_ = fmt::format("streamon failure, {}", FormatErrno());
         logger_->error(error_);
         return false;
     }
@@ -584,7 +590,7 @@ bool WebcamV4l2::StreamOff() {
 
     enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (ioctl(cam_fd_, VIDIOC_STREAMOFF, &type) == -1) {
-        error_ = fmt::format("streamoff failure, {}", strerror(errno));
+        error_ = fmt::format("streamoff failure, {}", FormatErrno());
         logger_->error(error_);
         return false;
     }
@@ -601,7 +607,7 @@ bool WebcamV4l2::SetFps(uint8_t fps) {
     memset(&parm, 0, sizeof(struct v4l2_streamparm));
     parm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (ioctl(cam_fd_, VIDIOC_G_PARM, &parm) == -1) {
-        error_ = fmt::format("get fps failure, {}", strerror(errno));
+        error_ = fmt::format("VIDIOC_G_PARM failure, {}", FormatErrno());
         logger_->error(error_);
         return false;
     }
@@ -611,7 +617,7 @@ bool WebcamV4l2::SetFps(uint8_t fps) {
         return true;
     }
 
-    logger_->debug("try to set fps {}", fps);
+    logger_->info("try to set fps {}", fps);
     struct v4l2_streamparm setfps;
     memset(&setfps, 0, sizeof(setfps));
     setfps.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -619,19 +625,18 @@ bool WebcamV4l2::SetFps(uint8_t fps) {
     setfps.parm.capture.timeperframe.denominator = fps;
     if (ioctl(cam_fd_, VIDIOC_S_PARM, &setfps) == -1) {
         /* Not fatal - just warn about it */
-        error_ = fmt::format("set fps failure, {}", strerror(errno));
+        error_ = fmt::format("set fps failure, {}", FormatErrno());
         logger_->warn(error_);
         return false;
     }
 
     if (ioctl(cam_fd_, VIDIOC_G_PARM, &parm) == -1) {
-        error_ = fmt::format("get fps failure, {}", strerror(errno));
+        error_ = fmt::format("VIDIOC_G_PARM failure, {}", FormatErrno());
         logger_->error(error_);
         return false;
     }
 
-    logger_->debug("current fps {}",
-                   parm.parm.capture.timeperframe.denominator);
+    logger_->info("current fps {}", parm.parm.capture.timeperframe.denominator);
     return true;
 }
 
@@ -642,51 +647,6 @@ bool WebcamV4l2::GetControl() {
     while (0 == ioctl(cam_fd_, VIDIOC_QUERYCTRL, &queryctrl)) {
         ShowControl(&queryctrl);
         queryctrl.id |= V4L2_CTRL_FLAG_NEXT_CTRL;
-    }
-
-    return true;
-}
-
-bool WebcamV4l2::GetOldPrivateControl() {
-    // old style
-    // https://www.kernel.org/doc/html/latest/media/uapi/v4l/control.html
-    // https://www.kernel.org/doc/html/latest/media/uapi/v4l/control.html#id1
-    logger_->warn("'''''''''''''''private'''''''''''''''''");
-
-    struct v4l2_queryctrl queryctrl;
-    memset(&queryctrl, 0, sizeof(queryctrl));
-    for (queryctrl.id = V4L2_CID_PRIVATE_BASE;; ++queryctrl.id) {
-        if (0 == ioctl(cam_fd_, VIDIOC_QUERYCTRL, &queryctrl)) {
-            ShowControl(&queryctrl);
-        } else {
-            if (errno == EINVAL) {
-                return false;
-            }
-
-            break;
-        }
-    }
-
-    return true;
-}
-
-bool WebcamV4l2::GetOldControl() {
-    // https://www.kernel.org/doc/html/latest/media/uapi/v4l/vidioc-queryctrl.html
-    logger_->warn("'''''''''''''''legacy'''''''''''''''''");
-    struct v4l2_queryctrl queryctrl;
-    memset(&queryctrl, 0, sizeof(queryctrl));
-    for (queryctrl.id = V4L2_CID_BASE; queryctrl.id < V4L2_CID_LASTP1;
-         ++queryctrl.id) {
-        if (0 == ioctl(cam_fd_, VIDIOC_QUERYCTRL, &queryctrl)) {
-            ShowControl(&queryctrl);
-            logger_->trace("show {}", queryctrl.name);
-        } else {
-            if (errno == EINVAL) {
-                continue;
-            }
-
-            return false;
-        }
     }
 
     return true;
@@ -878,13 +838,13 @@ bool WebcamV4l2::SetExposure() {
     }
     printf("\nGet Exposure Auto Type:[%d]\n", ctrl.value);
 
-    ctrl.id = V4L2_CID_ROTATE;
-    ctrl.value = 90;
-    if (ioctl(cam_fd_, VIDIOC_S_CTRL, &ctrl) == -1) {
-        printf("Set rotate failed\n");
-        return false;
-    }
-    printf("\nSet rotate:[%d]\n", ctrl.value);
+    // ctrl.id = V4L2_CID_ROTATE;
+    // ctrl.value = 90;
+    // if (ioctl(cam_fd_, VIDIOC_S_CTRL, &ctrl) == -1) {
+    // printf("Set rotate failed\n");
+    // return false;
+    //}
+    // printf("\nSet rotate:[%d]\n", ctrl.value);
     // struct v4l2_control ctrl;
     // ctrl.id = V4L2_CID_EXPOSURE_AUTO;
     // if (ioctl(cam_fd_, VIDIOC_G_CTRL, &ctrl) == -1) {
@@ -898,12 +858,6 @@ bool WebcamV4l2::SetExposure() {
 bool WebcamV4l2::Grab(std::string &out, uint32_t timeout) {
     if (!working_) {
         error_ = "not started";
-        logger_->error(error_);
-        return false;
-    }
-
-    if (async_mode_) {
-        error_ = "must call RunStop() to stop job in asynchronous mode";
         logger_->error(error_);
         return false;
     }
@@ -930,6 +884,50 @@ bool WebcamV4l2::Grab(std::string &out, uint32_t timeout) {
     }
 }
 
+bool WebcamV4l2::Retrieve(std::string &img) {
+    struct v4l2_buffer buf;
+    memset(&buf, 0, sizeof(buf));
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    buf.memory = V4L2_MEMORY_MMAP;
+
+    if (ioctl(cam_fd_, VIDIOC_DQBUF, &buf) == -1) {
+        logger_->error("retrieve VIDIOC_DQBUF failure, {}", FormatErrno());
+        return false;
+    }
+
+    img.assign((char *)buf_stat_->buffer[buf.index].start, buf.bytesused);
+
+    if (ioctl(cam_fd_, VIDIOC_QBUF, &buf) == -1) {
+        logger_->error("retrieve VIDIOC_QBUF failure, {}", FormatErrno());
+        return false;
+    }
+
+    return true;
+}
+
+bool WebcamV4l2::Retrieve(std::string *img) {
+    if (img) {
+        return Retrieve(*img);
+    } else {
+        struct v4l2_buffer buf;
+        memset(&buf, 0, sizeof(buf));
+        buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        buf.memory = V4L2_MEMORY_MMAP;
+
+        if (ioctl(cam_fd_, VIDIOC_DQBUF, &buf) == -1) {
+            logger_->error("retrieve VIDIOC_DQBUF failure, {}", FormatErrno());
+            return false;
+        }
+
+        if (ioctl(cam_fd_, VIDIOC_QBUF, &buf) == -1) {
+            logger_->error("retrieve VIDIOC_QBUF failure, {}", FormatErrno());
+            return false;
+        }
+
+        return true;
+    }
+}
+
 bool WebcamV4l2::Start() {
     if (working_) {
         return true;
@@ -939,23 +937,13 @@ bool WebcamV4l2::Start() {
         return false;
     }
 
-    async_mode_ = false;
-
     working_ = StreamOn();
-    logger_->info("sync mode start {}", working_);
+    logger_->info("start working {}", working_);
     return working_;
 }
 
 bool WebcamV4l2::Stop() {
-    if (async_mode_) {
-        error_ = "must call RunStop() to stop job in asynchronous mode";
-        logger_->error(error_);
-        return false;
-    }
-
     if (!working_) {
-        error_ = "not working";
-        logger_->error(error_);
         return false;
     }
 
@@ -964,22 +952,12 @@ bool WebcamV4l2::Stop() {
     FreeMMap();
 
     working_ = false;
-    logger_->info("sync mode stop");
+    logger_->info("stop working");
     return true;
 }
-
-// async mode
-bool WebcamV4l2::SetGrabCallback(
-    const std::function<void(const char *, uint32_t)> &cb) {
-    aysnc_frame_cb_ = cb;
-    return true;
-}
-
-bool WebcamV4l2::RunStart() { return false; }
-bool WebcamV4l2::RunStop() { return false; }
 
 bool WebcamV4l2::SetTransform(JpegTransform::JpegTransformOp op) {
-    if (op != JpegTransform::kTransNone) {
+    if (op != JpegTransform::JpegTransformOp::kTransNone) {
         try {
             transform_.reset(new JpegTransform(op));
             logger_->info("JpegTransform is created");
