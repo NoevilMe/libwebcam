@@ -22,7 +22,7 @@
 namespace noevil {
 namespace webcam {
 
-enum WebcamFormat {
+enum class WebcamFormat {
     kFmtNone,
     kFmtMJPG, // Motion-JPEG
     kFmtYUYV  // YUYV422

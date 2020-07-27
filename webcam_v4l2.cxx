@@ -138,7 +138,7 @@ bool WebcamV4l2::Init() {
     }
 
     if (!IsV4l2VideoDevice()) {
-        error_ = "not a video capture device";
+        error_ = fmt::format("{} is not a video device", dev_name_);
         logger_->error(error_);
         return false;
     }
@@ -256,12 +256,6 @@ bool WebcamV4l2::Close() {
 }
 
 bool WebcamV4l2::SetInput(const char *name) {
-    if (!IsV4l2VideoDevice()) {
-        error_ = fmt::format("{} is not a video device", dev_name_);
-        logger_->error(error_);
-        return false;
-    }
-
     uint32_t match_index = 0;
 
     struct v4l2_input cam_input;
@@ -357,11 +351,11 @@ bool WebcamV4l2::SetPixFormat(WebcamFormat fmt, uint32_t width,
                       PixFormatName(fmt_desc.pixelformat),
                       fmt_desc.description);
 
-        if (fmt == kFmtMJPG && fmt_desc.pixelformat == V4L2_PIX_FMT_MJPEG) {
+        if (fmt == WebcamFormat::kFmtMJPG && fmt_desc.pixelformat == V4L2_PIX_FMT_MJPEG) {
             pix_format = V4L2_PIX_FMT_MJPEG;
         }
 
-        if (fmt == kFmtYUYV && fmt_desc.pixelformat == V4L2_PIX_FMT_YUYV) {
+        if (fmt == WebcamFormat::kFmtYUYV && fmt_desc.pixelformat == V4L2_PIX_FMT_YUYV) {
             pix_format = V4L2_PIX_FMT_YUYV;
         }
 
