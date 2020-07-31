@@ -3,17 +3,23 @@ set(CMAKE_CXX_STANDARD 11)
 
 project(webcam)
 
-set(LIB_SRCS 
-    log.cxx
-    webcam_v4l2.cxx
-    jpeg_transform.cxx)
+set(WEBCAM_LIB_SRCS 
+    src/log.cxx
+    src/webcam_v4l2.cxx)
 
-set(SRCS 
-    main.cxx)
+set(TRANSFORM_LIB_SRCS
+    src/jpeg_transform.cxx)
 
-include_directories(${PROJECT_SOURCE_DIR})
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
-add_library(${PROJECT_NAME} STATIC ${LIB_SRCS})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
-add_executable(cap ${SRCS})
-target_link_libraries(cap ${PROJECT_NAME} turbojpeg)
+add_library(${PROJECT_NAME} STATIC ${WEBCAM_LIB_SRCS})
+add_library(jpegtrans STATIC ${TRANSFORM_LIB_SRCS})
+
+add_executable(cap test/main.cxx)
+target_link_libraries(cap ${PROJECT_NAME} jpegtrans turbojpeg)
+
+add_executable(cap_yuv test/main_yuv.cxx)
+target_link_libraries(cap_yuv ${PROJECT_NAME})

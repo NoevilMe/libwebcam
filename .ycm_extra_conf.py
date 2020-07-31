@@ -67,8 +67,7 @@ sys_include_dir = [
     # must put in front of /usr/include
     '/usr/include/c++/8',
     '/usr/include/c++/7',
-    '/usr/include',
-    '/usr/include/opencv4'
+    '/usr/include'
 ]
 
 # https://releases.llvm.org/9.0.0/tools/clang/docs/ClangCommandLineReference.html#include-path-management
@@ -77,7 +76,8 @@ sys_include_dir = [
 # -I <dir>
 project_include_dir = [
     ".",
-    "./spdlog",
+    "./include",
+    "./include/spdlog",
     "./build",
 ]
 
