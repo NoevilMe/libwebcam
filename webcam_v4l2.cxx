@@ -351,12 +351,39 @@ bool WebcamV4l2::SetPixFormat(WebcamFormat fmt, uint32_t width,
                       PixFormatName(fmt_desc.pixelformat),
                       fmt_desc.description);
 
-        if (fmt == WebcamFormat::kFmtMJPG && fmt_desc.pixelformat == V4L2_PIX_FMT_MJPEG) {
+        if (fmt == WebcamFormat::kFmtMJPG &&
+            fmt_desc.pixelformat == V4L2_PIX_FMT_MJPEG) {
             pix_format = V4L2_PIX_FMT_MJPEG;
         }
 
-        if (fmt == WebcamFormat::kFmtYUYV && fmt_desc.pixelformat == V4L2_PIX_FMT_YUYV) {
+        if (fmt == WebcamFormat::kFmtYUYV &&
+            fmt_desc.pixelformat == V4L2_PIX_FMT_YUYV) {
             pix_format = V4L2_PIX_FMT_YUYV;
+        }
+
+        struct v4l2_frmsizeenum frmsize;
+        frmsize.pixel_format = fmt_desc.pixelformat;
+        frmsize.index = 0;
+        while (ioctl(cam_fd_, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0) {
+            logger_->debug("frame size: {}x{}", frmsize.discrete.width,
+                           frmsize.discrete.height);
+
+            struct v4l2_frmivalenum frmival;
+            memset(&frmival, 0, sizeof(frmival));
+            frmival.pixel_format = frmsize.pixel_format;
+            frmival.width = frmsize.discrete.width;
+            frmival.height = frmsize.discrete.height;
+            frmival.type = V4L2_FRMIVAL_TYPE_DISCRETE;
+            frmival.index = 0;
+
+            while (ioctl(cam_fd_, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) == 0) {
+                logger_->debug("frame interval: {:0.3f}s ({} fps)",
+                               (double)frmival.discrete.numerator /
+                                   frmival.discrete.denominator,
+                               frmival.discrete.denominator);
+                frmival.index++;
+            }
+            ++frmsize.index;
         }
 
         ++fmt_desc.index;
@@ -374,7 +401,8 @@ bool WebcamV4l2::SetPixFormat(WebcamFormat fmt, uint32_t width,
         if (ioctl(cam_fd_, VIDIOC_ENUM_FMT, &fmt_desc) == 0) {
             pix_format = fmt_desc.pixelformat;
         } else {
-            error_ = fmt::format("get index 0 format failure, {}", FormatErrno());
+            error_ =
+                fmt::format("get index 0 format failure, {}", FormatErrno());
             logger_->error(error_);
             return false;
         }
@@ -403,34 +431,6 @@ bool WebcamV4l2::SetPixFormat(WebcamFormat fmt, uint32_t width,
                              PixFormatName(v4l2_fmt.fmt.pix.pixelformat));
         logger_->error(error_);
         return false;
-    }
-
-    logger_->debug("enumerate format {} support frame size",
-                   PixFormatName(pix_format));
-
-    struct v4l2_frmsizeenum frmsize;
-    frmsize.pixel_format = pix_format;
-    frmsize.index = 0;
-    while (ioctl(cam_fd_, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0) {
-        logger_->debug("size: {}x{}", frmsize.discrete.width,
-                       frmsize.discrete.height);
-
-        struct v4l2_frmivalenum frmival;
-        memset(&frmival, 0, sizeof(frmival));
-        frmival.pixel_format = frmsize.pixel_format;
-        frmival.width = frmsize.discrete.width;
-        frmival.height = frmsize.discrete.height;
-        frmival.type = V4L2_FRMIVAL_TYPE_DISCRETE;
-        frmival.index = 0;
-
-        while (ioctl(cam_fd_, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) == 0) {
-            logger_->debug("discrete frame interval: {:0.3f}s ({} fps)",
-                           (double)frmival.discrete.numerator /
-                               frmival.discrete.denominator,
-                           frmival.discrete.denominator);
-            frmival.index++;
-        }
-        ++frmsize.index;
     }
 
     if (v4l2_fmt.fmt.pix.width != width || v4l2_fmt.fmt.pix.height != height) {
