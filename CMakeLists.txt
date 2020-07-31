@@ -18,8 +18,11 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 add_library(${PROJECT_NAME} STATIC ${WEBCAM_LIB_SRCS})
 add_library(jpegtrans STATIC ${TRANSFORM_LIB_SRCS})
 
-add_executable(cap test/main.cxx)
+add_executable(cap test/main_jpeg.cxx)
 target_link_libraries(cap ${PROJECT_NAME} jpegtrans turbojpeg)
 
 add_executable(cap_yuv test/main_yuv.cxx)
 target_link_libraries(cap_yuv ${PROJECT_NAME})
+
+add_executable(cap_video test/main_yuv_video.cxx)
+target_link_libraries(cap_video ${PROJECT_NAME})

@@ -79,13 +79,25 @@ public:
 
     // sync mode
     // @timeout milliseconds
-    bool Grab(std::string &out, uint32_t timeout = 100);
     bool Start();
     bool Stop();
+    // block
+    bool Grab(std::string &out, uint32_t timeout = 100);
 
-    // retrieve
+    // non-block, work with eventloop
     bool Retrieve(std::string &img);
     bool Retrieve(std::string *img);
+
+    // with work callback
+    void
+    SetFrameCallback(const std::function<void(const char *const, uint32_t)> &cb) {
+        frame_cb_ = cb;
+    }
+
+    // block
+    bool Grab(uint32_t timeout = 100);
+    // non-block
+    bool Retrieve(bool discard = false);
 
     // query util
     bool GetControl();
@@ -121,7 +133,6 @@ private:
     bool GrabFrame(void *&img, uint32_t *length, uint32_t timeout = 100);
     bool GrabFrame(std::string &img, uint32_t timeout = 100);
 
-
 private:
     bool working_;
     int cam_fd_;
@@ -134,6 +145,7 @@ private:
 
     std::map<decltype(V4l2Ctrl::queryctrl.id), V4l2Ctrl> ctrl_;
     std::unique_ptr<V4l2BufStat, V4l2BufStatDeleter> buf_stat_;
+    std::function<void(const char *const, uint32_t)> frame_cb_;
 };
 
 } // namespace webcam
