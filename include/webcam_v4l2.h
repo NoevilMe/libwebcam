@@ -78,14 +78,18 @@ public:
     bool SetFps(uint8_t fps);
 
     // sync mode
-    // @timeout milliseconds
     bool Start();
     bool Stop();
-    // block
+
+    // block, select and grab
+    // @timeout milliseconds
     bool Grab(std::string &out, uint32_t timeout = 100);
+    // nullptr to discard
+    bool Grab(std::string *out, uint32_t timeout = 100);
 
     // non-block, work with eventloop
     bool Retrieve(std::string &img);
+    // nullptr to discard
     bool Retrieve(std::string *img);
 
     // with work callback
@@ -102,6 +106,10 @@ public:
     // query util
     bool GetControl();
     bool SetExposure();
+
+    int fd() const {
+        return cam_fd_;
+    }
 
 private:
     bool IsV4l2VideoDevice();
@@ -129,8 +137,6 @@ private:
 
     void Release();
 
-    // select and grab
-    bool GrabFrame(void *&img, uint32_t *length, uint32_t timeout = 100);
     bool GrabFrame(std::string &img, uint32_t timeout = 100);
 
 private:

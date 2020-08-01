@@ -149,52 +149,6 @@ bool WebcamV4l2::Init() {
     return true;
 }
 
-bool WebcamV4l2::GrabFrame(void *&img, uint32_t *length, uint32_t timeout) {
-    struct timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = timeout * 1000;
-
-    fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(cam_fd_, &fds);
-
-    int r = select(cam_fd_ + 1, &fds, nullptr, nullptr, &tv);
-
-    if (-1 == r) {
-        error_ = fmt::format("select failure, {}", FormatErrno());
-        logger_->error(error_);
-        return false;
-    }
-
-    if (!r) {
-        error_ = fmt::format("select {} ms timeout", timeout);
-        logger_->error(error_);
-        return false;
-    }
-
-    auto buf_ptr = &buf_stat_->buf;
-    memset(buf_ptr, 0, sizeof(*buf_ptr));
-    buf_ptr->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    buf_ptr->memory = V4L2_MEMORY_MMAP;
-
-    if (ioctl(cam_fd_, VIDIOC_DQBUF, buf_ptr) == -1) {
-        logger_->error("VIDIOC_DQBUF failure");
-        return false;
-    }
-
-    auto index = buf_ptr->index;
-    buf_stat_->buffer[index].bytes = buf_ptr->bytesused;
-
-    img = buf_stat_->buffer[index].start;
-    *length = buf_stat_->buffer[index].bytes;
-
-    if (ioctl(cam_fd_, VIDIOC_QBUF, buf_ptr) == -1) {
-        logger_->error("VIDIOC_QBUF failure");
-        return false;
-    }
-
-    return true;
-}
 
 bool WebcamV4l2::GrabFrame(std::string &img, uint32_t timeout) {
     struct timeval tv;
@@ -870,6 +824,64 @@ bool WebcamV4l2::Grab(std::string &out, uint32_t timeout) {
     return true;
 }
 
+bool WebcamV4l2::Grab(std::string *out, uint32_t timeout) {
+    if (!working_) {
+        error_ = "not started";
+        logger_->error(error_);
+        return false;
+    }
+
+    if (!buf_stat_) {
+        error_ = "v4l2 buffers are not ready";
+        logger_->error(error_);
+        return false;
+    }
+
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = timeout * 1000;
+
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(cam_fd_, &fds);
+
+    int r = select(cam_fd_ + 1, &fds, nullptr, nullptr, &tv);
+
+    if (-1 == r) {
+        error_ = fmt::format("select failure, {}", FormatErrno());
+        logger_->error(error_);
+        return false;
+    }
+
+    if (!r) {
+        error_ = fmt::format("select {} ms timeout", timeout);
+        logger_->error(error_);
+        return false;
+    }
+
+    auto buf_ptr = &buf_stat_->buf;
+    memset(buf_ptr, 0, sizeof(*buf_ptr));
+    buf_ptr->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    buf_ptr->memory = V4L2_MEMORY_MMAP;
+
+    if (ioctl(cam_fd_, VIDIOC_DQBUF, buf_ptr) == -1) {
+        logger_->error("grab VIDIOC_DQBUF failure, {}", FormatErrno());
+        return false;
+    }
+
+    if (out) {
+        (*out).assign((char *)buf_stat_->buffer[buf_ptr->index].start,
+                      buf_ptr->bytesused);
+    }
+
+    if (ioctl(cam_fd_, VIDIOC_QBUF, buf_ptr) == -1) {
+        logger_->error("grab VIDIOC_QBUF failure, {}", FormatErrno());
+        return false;
+    }
+
+    return true;
+}
+
 // block
 bool WebcamV4l2::Grab(uint32_t timeout) {
     if (!frame_cb_) {
@@ -922,11 +934,8 @@ bool WebcamV4l2::Grab(uint32_t timeout) {
         return false;
     }
 
-    auto index = buf_ptr->index;
-    buf_stat_->buffer[index].bytes = buf_ptr->bytesused;
-
-    frame_cb_((const char *)buf_stat_->buffer[index].start,
-              buf_stat_->buffer[index].bytes);
+    frame_cb_((const char *)buf_stat_->buffer[buf_ptr->index].start,
+              buf_ptr->bytesused);
 
     if (ioctl(cam_fd_, VIDIOC_QBUF, buf_ptr) == -1) {
         logger_->error("VIDIOC_QBUF failure");
@@ -938,7 +947,6 @@ bool WebcamV4l2::Grab(uint32_t timeout) {
 
 // non-block
 bool WebcamV4l2::Retrieve(bool discard) {
-
     if (!frame_cb_) {
         error_ = "frame callback is null";
         logger_->error(error_);
@@ -981,6 +989,18 @@ bool WebcamV4l2::Retrieve(bool discard) {
 }
 
 bool WebcamV4l2::Retrieve(std::string &img) {
+    if (!working_) {
+        error_ = "stream is not started";
+        logger_->error(error_);
+        return false;
+    }
+
+    if (!buf_stat_) {
+        error_ = "v4l2 buffers are not ready";
+        logger_->error(error_);
+        return false;
+    }
+
     struct v4l2_buffer buf;
     memset(&buf, 0, sizeof(buf));
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -1005,6 +1025,18 @@ bool WebcamV4l2::Retrieve(std::string *img) {
     if (img) {
         return Retrieve(*img);
     } else { // discard frame quickly
+        if (!working_) {
+            error_ = "stream is not started";
+            logger_->error(error_);
+            return false;
+        }
+
+        if (!buf_stat_) {
+            error_ = "v4l2 buffers are not ready";
+            logger_->error(error_);
+            return false;
+        }
+
         struct v4l2_buffer buf;
         memset(&buf, 0, sizeof(buf));
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;

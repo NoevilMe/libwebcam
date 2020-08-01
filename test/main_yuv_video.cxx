@@ -37,6 +37,10 @@ int main(int argc, char **argv) {
     };
 
     cam.SetFrameCallback(cb);
+    // discard
+    for (int i = 0; i < 100; ++i) {
+        cam.Grab(nullptr, 200);
+    }
 
     for (int i = 0; i < 100; ++i) {
         cam.Grab(200);
